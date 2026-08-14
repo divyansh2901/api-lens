@@ -1,0 +1,58 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  projects     Project[]
+}
+
+model Project {
+  id        String      @id @default(uuid())
+  name      String
+  userId    String
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  apiKeys   ApiKey[]
+  logs      RequestLog[]
+
+  @@index([userId])
+}
+
+model ApiKey {
+  id        String    @id @default(uuid())
+  keyHash   String    @unique
+  projectId String
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+model RequestLog {
+  id         String   @id @default(uuid())
+  projectId  String
+  method     String
+  route      String
+  statusCode Int
+  latency    Int
+  timestamp  DateTime @default(now())
+
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, timestamp])
+  @@index([projectId, route])
+}
