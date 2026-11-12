@@ -4,9 +4,13 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "tsx watch --env-file=.env src/server.ts",
-    "build": "tsc",
-    "start": "node dist/server.ts"
+    "dev": "node --env-file=.env --import tsx --watch src/server.ts",
+    "build": "prisma generate && tsc",
+    "start": "node --env-file=.env dist/server.js",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:studio": "prisma studio"
   },
   "keywords": [],
   "author": "",
@@ -29,5 +33,11 @@
     "prisma": "^7.9.1",
     "tsx": "^4.23.11",
     "typescript": "^7.0.2"
+  },
+  "allowScripts": {
+    "@prisma/engines@7.9.1": true,
+    "prisma@7.9.1": true,
+    "bcrypt@6.0.0": true,
+    "esbuild@0.28.2": true
   }
 }

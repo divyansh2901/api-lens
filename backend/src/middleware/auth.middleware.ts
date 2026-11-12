@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { AppError } from "../utils/errors.js";
+import { env } from "../config/env.js";
 
 /**
  * JWT Authentication Middleware — protects routes that require login.
@@ -32,8 +33,6 @@ declare module "express" {
   }
 }
 
-const JWT_SECRET = process.env.JWT_SECRET!;
-
 export function authenticate(
   req: Request,
   _res: Response,
@@ -54,7 +53,7 @@ export function authenticate(
     // 4. Verify the token — this checks:
     //    - Is the signature valid? (was it signed by our JWT_SECRET?)
     //    - Has it expired? (we set 7d in auth.service.ts)
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
+    const decoded = jwt.verify(token, env.JWT_SECRET) as { userId: string };
 
     // 5. Attach userId to the request for downstream controllers
     req.userId = decoded.userId;

@@ -82,7 +82,7 @@ Example event:
 {
   "method": "GET",
   "route": "/products",
-  "status": 200,
+  "statusCode": 200,
   "latency": 143,
   "timestamp": "2026-08-27T12:30:00.000Z"
 }
@@ -538,6 +538,52 @@ Create files when the corresponding feature is implemented.
 
 ---
 
+## Run the backend locally
+
+The backend currently provides signup/login, project management, API key management, and a health check. The SDK, telemetry ingestion, worker, analytics API, and dashboard are not implemented yet.
+
+### Requirements
+
+- Node.js 20.6 or newer (the run scripts use Node's `--env-file` option)
+- PostgreSQL 14 or newer
+
+### Setup
+
+From the repository root:
+
+```bash
+cd backend
+npm install
+cp .env.example .env
+```
+
+Edit `backend/.env` and set `DATABASE_URL` to a PostgreSQL database that already exists. Set `JWT_SECRET` to a random value at least 32 characters long. For example, generate one with `openssl rand -hex 32` and paste the result into `.env`.
+
+Then create/update the local database schema and start the development server:
+
+```bash
+npm run db:generate
+npm run db:migrate
+npm run dev
+```
+
+The API listens on `http://localhost:5000` by default. Check `GET http://localhost:5000/health` for `{"status":"ok"}`. Set `PORT` in `.env` to use another port.
+
+### Other backend commands
+
+```bash
+npm run build       # Generate Prisma Client and compile TypeScript to dist/
+npm start           # Run the compiled server
+npm run db:studio   # Open Prisma Studio
+npm run db:deploy   # Apply committed migrations in a deployment environment
+```
+
+For local development, `db:migrate` uses Prisma's development migration flow. Commit the generated migration directory when changing the Prisma schema. `db:deploy` applies existing migrations without creating new ones.
+
+The server validates `DATABASE_URL` and `JWT_SECRET` at startup and exits with a direct configuration error if either is missing or invalid. Keep `.env` private; `.env.example` contains placeholders only.
+
+---
+
 # 11. Backend Architecture
 
 The backend should use layered architecture.
@@ -965,6 +1011,8 @@ When a key is created, the raw key should be shown once.
 ---
 
 # 17. SDK Requirements
+
+The Phase 4 SDK package lives in `sdk/`. See [the SDK guide](sdk/README.md) for installation, configuration, telemetry contract, and the runnable local example. The event uses `statusCode` to match the `RequestLog` database field. Delivery defaults to `http://localhost:5000/ingest` and can be pointed at a mock receiver or another compatible endpoint with `ingestionUrl`; the actual ingestion API is implemented in Phase 5.
 
 The SDK should capture:
 

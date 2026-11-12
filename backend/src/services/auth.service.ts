@@ -1,6 +1,7 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import prisma from "../config/prisma.js";
+import { env } from "../config/env.js";
 import { AppError } from "../utils/errors.js";
 import type { SignupInput, LoginInput } from "../validators/auth.validators.js";
 
@@ -21,8 +22,6 @@ import type { SignupInput, LoginInput } from "../validators/auth.validators.js";
  */
 
 // JWT secret from environment — never hardcode this
-const JWT_SECRET = process.env.JWT_SECRET!;
-
 /**
  * Generates a JWT token for a given user ID.
  *
@@ -40,7 +39,7 @@ const JWT_SECRET = process.env.JWT_SECRET!;
  * signed, not encrypted).
  */
 function generateToken(userId: string): string {
-  return jwt.sign({ userId }, JWT_SECRET, { expiresIn: "7d" });
+  return jwt.sign({ userId }, env.JWT_SECRET, { expiresIn: "7d" });
 }
 
 /**

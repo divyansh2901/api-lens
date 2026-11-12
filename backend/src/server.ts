@@ -1,15 +1,14 @@
 import app from "./app.js";
 import prisma from "./config/prisma.js";
-
-const PORT = process.env.PORT || 5000;
+import { env } from "./config/env.js";
 
 async function startServer() {
     try {
         await prisma.$connect();
         console.log("DB connected");
 
-        app.listen(PORT,()=>{
-            console.log(`API Lens server running on port ${PORT}`);
+        app.listen(env.PORT,()=>{
+            console.log(`API Lens server running on port ${env.PORT}`);
         });
     } catch(error) {
         console.error("DB connection failed: ",error);
