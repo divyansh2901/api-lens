@@ -5,7 +5,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { createSampleApp } from "../examples/sample-app.mjs";
 import { startMockReceiver } from "../examples/mock-receiver.mjs";
 
-const apiKey = "obs_test_key";
+const apiKey = "lens_test_key";
 let receiver;
 let server;
 let baseUrl;
@@ -74,10 +74,10 @@ test("captures non-success status codes and labels unmatched routes safely", asy
 });
 
 test("validates options and ignores delivery and callback failures", async () => {
-  const { observatory } = await import("../dist/index.js");
-  assert.throws(() => observatory({ apiKey: " " }), /apiKey/);
-  assert.throws(() => observatory({ apiKey, ingestionUrl: "file:///tmp/receiver" }), /HTTP or HTTPS/);
-  assert.throws(() => observatory({ apiKey, timeoutMs: 0 }), /timeoutMs/);
+  const { apiLens } = await import("../dist/index.js");
+  assert.throws(() => apiLens({ apiKey: " " }), /apiKey/);
+  assert.throws(() => apiLens({ apiKey, ingestionUrl: "file:///tmp/receiver" }), /HTTP or HTTPS/);
+  assert.throws(() => apiLens({ apiKey, timeoutMs: 0 }), /timeoutMs/);
 
   const badServer = createSampleApp({
     apiKey,
@@ -112,10 +112,10 @@ test("aborts a receiver that does not respond within the configured timeout", as
 
   let deliveryError;
   try {
-    const { observatory } = await import("../dist/index.js");
+    const { apiLens } = await import("../dist/index.js");
     const express = (await import("express")).default;
     const timeoutApp = express();
-    timeoutApp.use(observatory({
+    timeoutApp.use(apiLens({
       apiKey,
       ingestionUrl: `http://127.0.0.1:${receiverAddress.port}/ingest`,
       timeoutMs: 30,

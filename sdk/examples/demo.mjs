@@ -2,7 +2,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { startMockReceiver } from "./mock-receiver.mjs";
 import { createSampleApp } from "./sample-app.mjs";
 
-const apiKey = "obs_demo_key";
+const apiKey = "lens_demo_key";
 const receiver = await startMockReceiver({ apiKey });
 const app = createSampleApp({ apiKey, ingestionUrl: receiver.url });
 const server = app.listen(0, "127.0.0.1");

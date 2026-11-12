@@ -1,7 +1,7 @@
 {
-  "name": "api-observatory-sdk",
+  "name": "api-lens-sdk",
   "version": "0.1.0",
-  "description": "Express middleware for sending API request metrics to API Observatory",
+  "description": "Express middleware for sending API request metrics to API Lens",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

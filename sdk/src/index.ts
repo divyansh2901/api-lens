@@ -1,6 +1,6 @@
 import type { NextFunction, Request, RequestHandler, Response } from "express";
 
-export interface ObservatoryOptions {
+export interface ApiLensOptions {
   /** API key created for the monitored project. */
   apiKey: string;
   /** Receiver URL. Defaults to http://localhost:5000/ingest. */
@@ -23,9 +23,9 @@ const DEFAULT_INGESTION_URL = "http://localhost:5000/ingest";
 const DEFAULT_TIMEOUT_MS = 1_000;
 const MAX_TIMEOUT_MS = 30_000;
 
-function validateOptions(options: ObservatoryOptions): Required<Pick<ObservatoryOptions, "apiKey" | "ingestionUrl" | "timeoutMs">> {
+function validateOptions(options: ApiLensOptions): Required<Pick<ApiLensOptions, "apiKey" | "ingestionUrl" | "timeoutMs">> {
   if (!options || typeof options !== "object") {
-    throw new TypeError("observatory options must be an object");
+    throw new TypeError("API Lens options must be an object");
   }
   if (typeof options.apiKey !== "string" || options.apiKey.trim().length === 0) {
     throw new TypeError("apiKey must be a non-empty string");
@@ -65,7 +65,7 @@ function normalizedRoute(req: Request): string {
   return fullPath.replace(/\/+$/, "") || "/";
 }
 
-function reportDeliveryError(callback: ObservatoryOptions["onDeliveryError"], error: Error): void {
+function reportDeliveryError(callback: ApiLensOptions["onDeliveryError"], error: Error): void {
   if (!callback) return;
   try {
     callback(error);
@@ -102,7 +102,7 @@ async function deliver(event: TelemetryEvent, apiKey: string, url: string, timeo
  * response finishes. Telemetry delivery is best-effort and never enters the
  * Express error pipeline.
  */
-export function observatory(options: ObservatoryOptions): RequestHandler {
+export function apiLens(options: ApiLensOptions): RequestHandler {
   const validated = validateOptions(options);
 
   return (req: Request, res: Response, next: NextFunction): void => {
@@ -138,7 +138,7 @@ export function observatory(options: ObservatoryOptions): RequestHandler {
     } catch (error) {
       reportDeliveryError(
         options.onDeliveryError,
-        error instanceof Error ? error : new Error("Observatory middleware failed"),
+        error instanceof Error ? error : new Error("API Lens middleware failed"),
       );
     }
 

@@ -1,6 +1,6 @@
-# API Observatory Express SDK
+# API Lens Express SDK
 
-Express middleware that sends request metadata to API Observatory without collecting request or response contents.
+Express middleware that sends request metadata to API Lens without collecting request or response contents.
 
 ## Install
 
@@ -16,16 +16,16 @@ The SDK supports Node.js 20.6+ and Express 4.18 or 5. It requires no runtime dep
 
 ```ts
 import express from "express";
-import { observatory } from "api-observatory-sdk";
+import { apiLens } from "api-lens-sdk";
 
 const app = express();
 
-app.use(observatory({
-  apiKey: process.env.OBSERVATORY_API_KEY!,
+app.use(apiLens({
+  apiKey: process.env.API_LENS_API_KEY!,
   // Defaults to http://localhost:5000/ingest. Configure this for your receiver.
-  ingestionUrl: process.env.OBSERVATORY_INGESTION_URL,
+  ingestionUrl: process.env.API_LENS_INGESTION_URL,
   timeoutMs: 1_000,
-  onDeliveryError: (error) => console.warn("Observatory metrics were dropped:", error.message),
+  onDeliveryError: (error) => console.warn("API Lens metrics were dropped:", error.message),
 }));
 ```
 
@@ -59,6 +59,6 @@ npm test
 npm run example
 ```
 
-`npm run example` starts a sample Express application and a local mock telemetry receiver, makes a request, and prints the telemetry received. To run them separately, build first, then run `node examples/mock-receiver.mjs` and `node examples/sample-app.mjs` in separate terminals. Set `OBSERVATORY_INGESTION_URL=http://localhost:5001/ingest` and `OBSERVATORY_API_KEY=obs_example_key` for the sample app.
+`npm run example` starts a sample Express application and a local mock telemetry receiver, makes a request, and prints the telemetry received. To run them separately, build first, then run `node examples/mock-receiver.mjs` and `node examples/sample-app.mjs` in separate terminals. Set `API_LENS_INGESTION_URL=http://localhost:5001/ingest` and `API_LENS_API_KEY=lens_example_key` for the sample app.
 
 The SDK works with a mock or any compatible HTTP receiver; it does not depend on the Phase 5 ingestion API being implemented.

@@ -1,7 +1,7 @@
 import { createServer } from "node:http";
 
 /** Start a tiny receiver that checks the bearer key and records safe metrics. */
-export function startMockReceiver({ apiKey = "obs_example_key", port = 0 } = {}) {
+export function startMockReceiver({ apiKey = "lens_example_key", port = 0 } = {}) {
   const events = [];
   const server = createServer((req, res) => {
     const chunks = [];

@@ -41,11 +41,11 @@ import * as projectService from "./project.service.js";
  * That's O(n) instead of O(1) — terrible for performance.
  *
  * ═══════════════════════════════════════════════════════════════
- * KEY FORMAT: obs_<64 hex chars>
+ * KEY FORMAT: lens_<64 hex chars>
  * ═══════════════════════════════════════════════════════════════
  *
- * The "obs_" prefix makes the key easily identifiable:
- *   - Developers know it's an Observatory key at a glance
+ * The "lens_" prefix makes the key easily identifiable:
+ *   - Developers know it's an API Lens key at a glance
  *   - Secret scanning tools (GitHub, GitGuardian) can detect leaked keys
  *   - Similar to how Stripe uses "sk_live_" and GitHub uses "ghp_"
  */
@@ -57,12 +57,12 @@ import * as projectService from "./project.service.js";
  * cryptographically secure random number generator (CSPRNG).
  * Converting to hex gives us 64 characters (2 hex chars per byte).
  *
- * Total key: "obs_" + 64 hex chars = 68 characters
+ * Total key: "lens_" + 64 hex chars = 68 characters
  * Entropy: 256 bits (practically impossible to guess)
  */
 function generateRawKey(): string {
   const randomPart = crypto.randomBytes(32).toString("hex");
-  return `obs_${randomPart}`;
+  return `lens_${randomPart}`;
 }
 
 /**

@@ -1,9 +1,9 @@
 import express from "express";
-import { observatory } from "../dist/index.js";
+import { apiLens } from "../dist/index.js";
 
-export function createSampleApp({ apiKey = "obs_example_key", ingestionUrl, onDeliveryError } = {}) {
+export function createSampleApp({ apiKey = "lens_example_key", ingestionUrl, onDeliveryError } = {}) {
   const app = express();
-  app.use(observatory({ apiKey, ingestionUrl, onDeliveryError }));
+  app.use(apiLens({ apiKey, ingestionUrl, onDeliveryError }));
 
   app.get("/users/:userId", (req, res) => {
     // The user ID is intentionally not included in telemetry; the SDK records
@@ -21,8 +21,8 @@ export function createSampleApp({ apiKey = "obs_example_key", ingestionUrl, onDe
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const app = createSampleApp({
-    apiKey: process.env.OBSERVATORY_API_KEY ?? "obs_example_key",
-    ingestionUrl: process.env.OBSERVATORY_INGESTION_URL,
+    apiKey: process.env.API_LENS_API_KEY ?? "lens_example_key",
+    ingestionUrl: process.env.API_LENS_INGESTION_URL,
     onDeliveryError: (error) => console.error("Telemetry delivery failed:", error.message),
   });
   const port = Number(process.env.PORT ?? 3000);

@@ -1,8 +1,8 @@
-# 🔭 API Observatory
+# 🔭 API Lens
 
 > An AI-powered API observability platform for Express.js applications.
 
-API Observatory is an intermediate-level, portfolio-grade API observability platform that allows developers to monitor their Express/Node.js APIs through a custom SDK.
+API Lens is an intermediate-level, portfolio-grade API observability platform that allows developers to monitor their Express/Node.js APIs through a custom SDK.
 
 The platform automatically collects non-sensitive API request metrics, processes them asynchronously using RabbitMQ, stores them in PostgreSQL, exposes analytics through REST APIs, and presents the results through a React dashboard.
 
@@ -55,7 +55,7 @@ An AI layer analyzes structured API analytics and generates human-readable expla
 
 # 1. Project Overview
 
-API Observatory is an observability platform designed specifically for Express.js APIs.
+API Lens is an observability platform designed specifically for Express.js APIs.
 
 A developer should be able to install a custom npm package and add one middleware to their Express application.
 
@@ -63,18 +63,18 @@ Example:
 
 ```ts
 import express from "express";
-import { observatory } from "api-observatory-sdk";
+import { apiLens } from "api-lens-sdk";
 
 const app = express();
 
 app.use(
-  observatory({
-    apiKey: process.env.OBSERVATORY_API_KEY!,
+  apiLens({
+    apiKey: process.env.API_LENS_API_KEY!,
   })
 );
 ```
 
-After this, API Observatory should automatically collect useful request-level metadata.
+After this, API Lens should automatically collect useful request-level metadata.
 
 Example event:
 
@@ -88,7 +88,7 @@ Example event:
 }
 ```
 
-The SDK sends this telemetry to the API Observatory backend.
+The SDK sends this telemetry to the API Lens backend.
 
 The backend authenticates and validates the event, places it into RabbitMQ, and immediately responds to the SDK.
 
@@ -106,7 +106,7 @@ The AI layer analyzes structured analytics and generates useful explanations and
 
 Developers often don't have an easy way to understand what is happening inside their APIs.
 
-Questions that API Observatory should help answer include:
+Questions that API Lens should help answer include:
 
 * Which endpoint is slow?
 * Which endpoint has the highest error rate?
@@ -120,7 +120,7 @@ Questions that API Observatory should help answer include:
 
 Raw server logs can contain some of this information, but they are difficult to analyze manually.
 
-API Observatory converts raw request activity into structured observability data.
+API Lens converts raw request activity into structured observability data.
 
 The AI layer adds another level by explaining the analytics in natural language.
 
@@ -207,7 +207,7 @@ Developer API receives requests
    ↓
 SDK captures metrics
    ↓
-SDK sends metrics to API Observatory
+SDK sends metrics to API Lens
    ↓
 Ingestion API authenticates API key
    ↓
@@ -243,13 +243,13 @@ High-level architecture:
 │   Application Routes          │
 │          │                    │
 │          ▼                    │
-│   API Observatory SDK         │
+│   API Lens SDK         │
 └───────────────┬───────────────┘
                 │
                 │ HTTPS
                 ▼
 ┌───────────────────────────────┐
-│ API Observatory Backend       │
+│ API Lens Backend       │
 │                               │
 │       Ingestion API           │
 └───────────────┬───────────────┘
@@ -314,7 +314,7 @@ GET /products
 
 inside the developer's Express application.
 
-The Observatory SDK middleware observes the request.
+The API Lens SDK middleware observes the request.
 
 It records:
 
@@ -486,7 +486,7 @@ Recent Requests
 Target repository:
 
 ```text
-api-observatory/
+api-lens/
 │
 ├── backend/
 │   ├── prisma/
@@ -741,7 +741,7 @@ Recent Requests
 
 AI Insights
 
-Ask Observatory
+Ask API Lens
 ```
 
 ---
@@ -754,13 +754,13 @@ Desired usage:
 
 ```ts
 import express from "express";
-import { observatory } from "api-observatory-sdk";
+import { apiLens } from "api-lens-sdk";
 
 const app = express();
 
 app.use(
-  observatory({
-    apiKey: process.env.OBSERVATORY_API_KEY!,
+  apiLens({
+    apiKey: process.env.API_LENS_API_KEY!,
   })
 );
 ```
@@ -1429,7 +1429,7 @@ Method | Route | Status | Latency | Timestamp
 
 Show generated explanations.
 
-## Ask Observatory
+## Ask API Lens
 
 Future conversational interface.
 
@@ -1839,7 +1839,7 @@ Dashboard AI section
 Then consider:
 
 ```text
-Ask Observatory
+Ask API Lens
 ```
 
 ---
@@ -2267,7 +2267,7 @@ The project should demonstrate engineering judgment by **not** adding unnecessar
 
 # 36. Definition of Done
 
-API Observatory is considered complete when a developer can:
+API Lens is considered complete when a developer can:
 
 ```text
 1. Create an account
@@ -2332,7 +2332,7 @@ Potential future features:
 
 ## AI
 
-* Ask Observatory.
+* Ask API Lens.
 * Historical comparisons.
 * Anomaly detection.
 * Root-cause assistance.
@@ -2375,7 +2375,7 @@ Potential technical highlights:
 # Final Architecture
 
 ```text
-                         API OBSERVATORY
+                         API LENS
                               │
               ┌───────────────┴────────────────┐
               │                                │
@@ -2383,7 +2383,7 @@ Potential technical highlights:
        Developer API                    React Dashboard
               │                                │
               ▼                                │
-       Observatory SDK                         │
+       API Lens SDK                         │
               │                                │
               │ HTTPS                          │
               ▼                                │
