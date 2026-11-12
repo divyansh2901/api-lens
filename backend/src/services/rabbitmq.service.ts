@@ -66,6 +66,7 @@ export function createTelemetryPublisher(
       {
         contentType: "application/json",
         persistent: true,
+        messageId: message.eventId,
       },
     );
 

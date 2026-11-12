@@ -501,8 +501,11 @@ api-lens/
 │   │   ├── services/
 │   │   ├── utils/
 │   │   ├── app.ts
-│   │   └── server.ts
+│   │   ├── server.ts
+│   │   └── worker.ts
 │   │
+│   ├── test/
+│   ├── .env.example
 │   ├── .env
 │   ├── .gitignore
 │   ├── package.json
@@ -540,7 +543,7 @@ Create files when the corresponding feature is implemented.
 
 ## Run the backend locally
 
-The backend currently provides signup/login, project management, API key management, a health check, and `POST /ingest` with RabbitMQ publishing. The custom SDK is in `sdk/`. The persistence worker, analytics API, dashboard, and AI features are not implemented yet.
+The backend currently provides signup/login, project management, API key management, a health check, `POST /ingest`, and a RabbitMQ worker that persists telemetry to PostgreSQL. The custom SDK is in `sdk/`. The analytics API, dashboard, and AI features are not implemented yet.
 
 ### Requirements
 
@@ -568,6 +571,13 @@ npm run db:migrate
 npm run dev
 ```
 
+In a second terminal, start the persistence worker:
+
+```bash
+cd backend
+npm run worker:dev
+```
+
 The API listens on `http://localhost:5000` by default. Check `GET http://localhost:5000/health` for `{"status":"ok"}`. Set `PORT` in `.env` to use another port.
 
 ### Other backend commands
@@ -583,7 +593,9 @@ For local development, `db:migrate` uses Prisma's development migration flow. Co
 
 The server validates `DATABASE_URL`, `JWT_SECRET`, and the AMQP scheme in `RABBITMQ_URL` at startup. The broker URL defaults to local RabbitMQ when unset. Keep `.env` private; `.env.example` contains placeholders only.
 
-Telemetry ingestion publishes to the durable `api-lens.telemetry` RabbitMQ queue. Configure `RABBITMQ_URL` in `backend/.env`; the default is `amqp://localhost:5672`. Start RabbitMQ before sending telemetry. The endpoint returns `202 Accepted` only after RabbitMQ confirms the message. Phase 6 will add a worker to consume this queue and persist events.
+Telemetry ingestion publishes to the durable `api-lens.telemetry` RabbitMQ queue. The worker consumes this queue and writes `RequestLog` records. Configure `RABBITMQ_URL` in `backend/.env`; the default is `amqp://localhost:5672`. Start RabbitMQ before sending telemetry. The endpoint returns `202 Accepted` only after RabbitMQ confirms the message.
+
+The worker also declares durable `api-lens.telemetry.retry` and `api-lens.telemetry.dead` queues. Database failures are retried up to five times with a five-second delay; invalid messages and exhausted retries are forwarded to the dead-letter queue. New ingested messages carry a unique event ID, and `RequestLog.eventId` is unique so broker redeliveries do not create duplicate rows. Run `npm run db:migrate` to apply the event ID migration before starting the worker. In production, build with `npm run build` and run the worker separately with `npm run worker`.
 
 ---
 
@@ -902,6 +914,7 @@ Fields:
 
 ```text
 id
+eventId (nullable unique ID for deduplicating broker redeliveries)
 projectId
 method
 route
@@ -914,6 +927,7 @@ Example:
 
 ```json
 {
+  "eventId": "unique-event-uuid",
   "method": "GET",
   "route": "/orders",
   "statusCode": 500,
@@ -1120,6 +1134,8 @@ Consumer Worker
 
 Initially keep RabbitMQ architecture simple.
 
+The implemented ingestion queue is `api-lens.telemetry`. The worker declares durable retry and dead-letter queues named `api-lens.telemetry.retry` and `api-lens.telemetry.dead`.
+
 Do not create a complicated multi-exchange topology without a real requirement.
 
 The queue should contain serialized telemetry events.
@@ -1128,6 +1144,7 @@ Example message:
 
 ```json
 {
+  "eventId": "unique-event-uuid",
   "projectId": "uuid",
   "method": "GET",
   "route": "/products",
@@ -1140,6 +1157,10 @@ Example message:
 ---
 
 # 20. Worker Architecture
+
+The Phase 6 worker is started separately from the HTTP API with `npm run worker:dev` during development or `npm run worker` after building. It validates every message, uses manual acknowledgements and a prefetch limit of 10, and acknowledges a valid event only after `RequestLog` persistence succeeds. A repeated `eventId` is treated as already persisted. Invalid messages are copied to the dead-letter queue before the original delivery is acknowledged. Database failures are copied to the delayed retry queue; after five retries they go to the dead-letter queue. If forwarding to either queue fails, the original delivery is negatively acknowledged for requeue.
+
+The worker reconnects with exponential backoff after broker failures and handles `SIGINT`/`SIGTERM` by cancelling its consumer, waiting for active deliveries, then closing RabbitMQ and Prisma connections.
 
 The worker is responsible for persistence.
 
@@ -1787,6 +1808,8 @@ Database persistence
 ACK
 Failure handling
 ```
+
+Implemented in the backend: a separately run consumer with manual acknowledgements, Prisma `RequestLog` persistence, unique event IDs for redelivery deduplication, delayed retries, a dead-letter queue, reconnection, and graceful shutdown.
 
 ---
 

@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { randomUUID } from "node:crypto";
 import { authenticateApiKey, type ApiKeyValidator } from "../middleware/api-key.middleware.js";
 import { validate } from "../middleware/validate.js";
 import { AppError } from "../utils/errors.js";
@@ -29,7 +30,7 @@ export function createIngestionRouter(dependencies: IngestionDependencies = {}) 
       }
 
       const event = req.body as TelemetryInput;
-      const message: TelemetryMessage = { ...event, projectId };
+      const message: TelemetryMessage = { ...event, eventId: randomUUID(), projectId };
       try {
         await publish(message);
       } catch {

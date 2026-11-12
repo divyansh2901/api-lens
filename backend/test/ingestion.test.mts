@@ -7,19 +7,22 @@ process.env.DATABASE_URL ??= "postgresql://test:test@127.0.0.1:5432/api_lens_tes
 process.env.JWT_SECRET ??= "test-secret-that-is-long-enough-123456";
 process.env.RABBITMQ_URL ??= "amqp://guest:guest@127.0.0.1:5672";
 
-const [{ default: express }, { createIngestionRouter }, { errorHandler }, { AppError }, apiKeys, rabbit] = await Promise.all([
+const [{ default: express }, { createIngestionRouter }, { errorHandler }, { AppError }, apiKeys, rabbit, worker, requestLogs, prismaClient] = await Promise.all([
   import("express"),
   import("../src/routes/ingestion.routes.js"),
   import("../src/middleware/error-handler.js"),
   import("../src/utils/errors.js"),
   import("../src/services/apikey.service.js"),
   import("../src/services/rabbitmq.service.js"),
+  import("../src/services/telemetry-worker.service.js"),
+  import("../src/services/request-log.service.js"),
+  import("@prisma/client"),
 ]);
 
 const rawApiKey = `lens_${"a".repeat(64)}`;
 const apiKeyHash = createHash("sha256").update(rawApiKey).digest("hex");
 const storedKeys = new Map<string, { projectId: string; revokedAt: Date | null }>([
-  [apiKeyHash, { projectId: "project-owned-by-key", revokedAt: null }],
+  [apiKeyHash, { projectId: "c9fdddb5-6dae-4458-8350-27024161ac4a", revokedAt: null }],
 ]);
 const validateApiKey = apiKeys.createApiKeyValidator(async (hash) => storedKeys.get(hash) ?? null);
 const published: Array<Record<string, unknown>> = [];
@@ -79,7 +82,7 @@ test("API-key validation hashes the presented key and rejects missing or revoked
     lookedUpHash = hash;
     return storedKeys.get(hash) ?? null;
   });
-  assert.equal(await validator(rawApiKey), "project-owned-by-key");
+  assert.equal(await validator(rawApiKey), "c9fdddb5-6dae-4458-8350-27024161ac4a");
   assert.equal(lookedUpHash, apiKeyHash);
   await assert.rejects(validator("lens_unknown"), (error: unknown) => error instanceof AppError && error.statusCode === 401);
 
@@ -148,7 +151,12 @@ test("valid telemetry is accepted and published with the API-key project's ID", 
   const response = await send(event);
   assert.equal(response.status, 202);
   assert.deepEqual(await response.json(), { success: true });
-  assert.deepEqual(published.at(-1), { ...event, projectId: "project-owned-by-key" });
+  assert.deepEqual(published.at(-1), {
+    ...event,
+    eventId: published.at(-1)?.eventId,
+    projectId: "c9fdddb5-6dae-4458-8350-27024161ac4a",
+  });
+  assert.match(String(published.at(-1)?.eventId), /^[0-9a-f-]{36}$/i);
 });
 
 test("Phase 4 SDK sends a completed Express request through POST /ingest to the queue publisher", async () => {
@@ -176,12 +184,32 @@ test("Phase 4 SDK sends a completed Express request through POST /ingest to the 
     }
     const message = published.at(-1);
     assert.equal(published.length, publishCount + 1);
-    assert.equal(message?.projectId, "project-owned-by-key");
+    assert.equal(message?.projectId, "c9fdddb5-6dae-4458-8350-27024161ac4a");
+    assert.match(String(message?.eventId), /^[0-9a-f-]{36}$/i);
     assert.equal(message?.method, "GET");
     assert.equal(message?.route, "/products/:productId");
     assert.equal(message?.statusCode, 200);
     assert.equal(typeof message?.timestamp, "string");
     assert.equal(JSON.stringify(message).includes("private-product-id"), false);
+
+    let prismaCreateArgs: Record<string, unknown> | undefined;
+    const persist = requestLogs.createRequestLogPersister(async (args: Record<string, unknown>) => {
+      prismaCreateArgs = args;
+    });
+    const workerConsumer = makeConsumer();
+    await worker.processTelemetryDelivery(
+      makeDelivery(message),
+      workerConsumer,
+      makeForwarder(),
+      persist,
+      quietLogger,
+    );
+    assert.equal(workerConsumer.calls[0]?.method, "ack");
+    const persistedData = (prismaCreateArgs?.data ?? {}) as Record<string, unknown>;
+    assert.equal(persistedData.eventId, message?.eventId);
+    assert.equal(persistedData.projectId, message?.projectId);
+    assert.equal(persistedData.route, "/products/:productId");
+    assert.ok(persistedData.timestamp instanceof Date);
   } finally {
     await new Promise<void>((resolve, reject) => sampleServer.close((error) => error ? reject(error) : resolve()));
   }
@@ -213,7 +241,7 @@ test("RabbitMQ publisher asserts a durable queue and awaits persistent message c
     async createConfirmChannel() { return channel; },
   });
   const publish = rabbit.createTelemetryPublisher(async () => connection);
-  const message = { ...event, projectId: "project-owned-by-key" };
+  const message = { ...event, eventId: "e9638412-1805-4b61-8000-c75a2c065435", projectId: "c9fdddb5-6dae-4458-8350-27024161ac4a" };
   await publish(message);
 
   assert.deepEqual(channel.asserted, [rabbit.TELEMETRY_QUEUE, { durable: true }]);
@@ -242,6 +270,207 @@ test("RabbitMQ publisher rejects a stalled confirmation and closes the unusable 
   });
   const publish = rabbit.createTelemetryPublisher(async () => connection, 10);
 
-  await assert.rejects(publish({ ...event, projectId: "project-owned-by-key" }), /timed out/);
+  await assert.rejects(publish({ ...event, projectId: "c9fdddb5-6dae-4458-8350-27024161ac4a" }), /timed out/);
   assert.equal(channel.closed, true);
 });
+
+const validWorkerMessage = {
+  ...event,
+  eventId: "e9638412-1805-4b61-8000-c75a2c065435",
+  projectId: "c9fdddb5-6dae-4458-8350-27024161ac4a",
+};
+
+function makeDelivery(body: unknown, headers: Record<string, unknown> = {}) {
+  return {
+    content: Buffer.from(typeof body === "string" ? body : JSON.stringify(body)),
+    properties: { headers, messageId: validWorkerMessage.eventId, contentType: "application/json" },
+    fields: { deliveryTag: 1, redelivered: false },
+  };
+}
+
+function makeConsumer() {
+  const calls: Array<{ method: string; args: unknown[] }> = [];
+  return {
+    calls,
+    ack(...args: unknown[]) { calls.push({ method: "ack", args }); },
+    nack(...args: unknown[]) { calls.push({ method: "nack", args }); },
+  };
+}
+
+function makeForwarder({ failConfirm = false } = {}) {
+  return Object.assign(new EventEmitter(), {
+    messages: [] as Array<{ queue: string; body: Buffer; options: Record<string, unknown> }>,
+    sendToQueue(queue: string, body: Buffer, options: Record<string, unknown>) {
+      this.messages.push({ queue, body, options });
+      return true;
+    },
+    async waitForConfirms() {
+      if (failConfirm) throw new Error("broker unavailable");
+    },
+  });
+}
+
+const quietLogger = { info() {}, warn() {}, error() {} };
+
+test("worker persists valid messages before acknowledging and acknowledges idempotent duplicates", async () => {
+  const delivery = makeDelivery(validWorkerMessage);
+  const consumer = makeConsumer();
+  let finishPersist!: (result: "stored") => void;
+  const persist = () => new Promise<"stored">((resolve) => { finishPersist = resolve; });
+  const processing = worker.processTelemetryDelivery(delivery, consumer, makeForwarder(), persist, quietLogger);
+
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(consumer.calls.length, 0);
+  finishPersist("stored");
+  await processing;
+  assert.equal(consumer.calls[0]?.method, "ack");
+
+  const duplicateConsumer = makeConsumer();
+  await worker.processTelemetryDelivery(
+    makeDelivery(validWorkerMessage),
+    duplicateConsumer,
+    makeForwarder(),
+    async () => "duplicate",
+    quietLogger,
+  );
+  assert.equal(duplicateConsumer.calls[0]?.method, "ack");
+});
+
+test("worker dead-letters invalid messages and retries database failures with confirmed copies", async () => {
+  const deadConsumer = makeConsumer();
+  const deadForwarder = makeForwarder();
+  await worker.processTelemetryDelivery(makeDelivery({ ...validWorkerMessage, statusCode: 700 }), deadConsumer, deadForwarder, async () => "stored", quietLogger);
+  assert.equal(deadForwarder.messages[0]?.queue, worker.TELEMETRY_DEAD_QUEUE);
+  assert.equal(deadConsumer.calls[0]?.method, "ack");
+
+  const retryConsumer = makeConsumer();
+  const retryForwarder = makeForwarder();
+  await worker.processTelemetryDelivery(
+    makeDelivery(validWorkerMessage), retryConsumer, retryForwarder,
+    async () => { throw new Error("database unavailable"); }, quietLogger,
+  );
+  assert.equal(retryForwarder.messages[0]?.queue, worker.TELEMETRY_RETRY_QUEUE);
+  assert.equal(retryForwarder.messages[0]?.options.headers["x-api-lens-retry-attempt"], 1);
+  assert.equal(retryConsumer.calls[0]?.method, "ack");
+});
+
+test("worker sends exhausted retries to the dead-letter queue and requeues if forwarding fails", async () => {
+  const exhaustedConsumer = makeConsumer();
+  const exhaustedForwarder = makeForwarder();
+  await worker.processTelemetryDelivery(
+    makeDelivery(validWorkerMessage, { "x-api-lens-retry-attempt": worker.WORKER_MAX_RETRIES }),
+    exhaustedConsumer, exhaustedForwarder,
+    async () => { throw new Error("database unavailable"); }, quietLogger,
+  );
+  assert.equal(exhaustedForwarder.messages[0]?.queue, worker.TELEMETRY_DEAD_QUEUE);
+
+  const retryConsumer = makeConsumer();
+  await worker.processTelemetryDelivery(
+    makeDelivery(validWorkerMessage), retryConsumer, makeForwarder({ failConfirm: true }),
+    async () => { throw new Error("database unavailable"); }, quietLogger,
+  );
+  assert.equal(retryConsumer.calls[0]?.method, "nack");
+  assert.deepEqual(retryConsumer.calls[0]?.args.slice(1), [false, true]);
+});
+
+test("RequestLog persistence stores timestamps and treats an event ID unique conflict as a duplicate", async () => {
+  let createArgs: Record<string, unknown> | undefined;
+  const persist = requestLogs.createRequestLogPersister(async (args: Record<string, unknown>) => {
+    createArgs = args;
+  });
+  assert.equal(await persist(validWorkerMessage), "stored");
+  const createData = (createArgs?.data ?? {}) as Record<string, unknown>;
+  assert.equal(createData.eventId, validWorkerMessage.eventId);
+  assert.equal(createData.projectId, validWorkerMessage.projectId);
+  assert.ok(createData.timestamp instanceof Date);
+
+  const conflict = new prismaClient.Prisma.PrismaClientKnownRequestError("duplicate", {
+    code: "P2002",
+    clientVersion: "test",
+    meta: { target: ["eventId"] },
+  });
+  const duplicatePersist = requestLogs.createRequestLogPersister(async () => { throw conflict; });
+  assert.equal(await duplicatePersist(validWorkerMessage), "duplicate");
+});
+
+test("worker reconnects after broker failures and gracefully cancels its consumer", async () => {
+  const connections: Array<ReturnType<typeof makeWorkerConnection>> = [];
+  let connectAttempts = 0;
+  const workerHandle = worker.startTelemetryWorker({
+    persist: async () => "stored",
+    logger: quietLogger,
+    reconnectInitialDelayMs: 5,
+    retryDelayMs: 5,
+    connect: async () => {
+      connectAttempts += 1;
+      if (connectAttempts === 1) throw new Error("broker unavailable at startup");
+      const connection = makeWorkerConnection();
+      connections.push(connection);
+      return connection as never;
+    },
+  });
+
+  try {
+    for (let attempt = 0; attempt < 100 && connections.length === 0; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    assert.equal(connections.length, 1);
+    assert.ok(connections[0].consumer.consumeCallback);
+    assert.equal(connections[0].consumer.prefetchValue, 10);
+    assert.equal(connections[0].consumer.consumeOptions?.noAck, false);
+    assert.ok(connections[0].publisher.assertions.some(({ queue, options }) => queue === worker.TELEMETRY_DEAD_QUEUE && options.durable === true));
+    const retryQueue = connections[0].publisher.assertions.find(({ queue }) => queue === worker.TELEMETRY_RETRY_QUEUE);
+    assert.equal(retryQueue?.options.arguments?.["x-message-ttl"], 5);
+    assert.equal(retryQueue?.options.arguments?.["x-dead-letter-routing-key"], rabbit.TELEMETRY_QUEUE);
+
+    connections[0].emit("close");
+    for (let attempt = 0; attempt < 100 && connections.length < 2; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    assert.equal(connections.length, 2);
+  } finally {
+    await workerHandle.close();
+  }
+
+  assert.equal(connections[1].consumer.cancelled, true);
+  assert.equal(connections[1].closed, true);
+});
+
+function makeWorkerConnection() {
+  const consumer = Object.assign(new EventEmitter(), {
+    cancelled: false,
+    consumeCallback: undefined as ((message: unknown) => void) | undefined,
+    assertions: [] as Array<{ queue: string; options: Record<string, unknown> }>,
+    prefetchValue: 0,
+    consumeOptions: undefined as Record<string, unknown> | undefined,
+    async assertQueue(queue: string, options: Record<string, unknown>) { this.assertions.push({ queue, options }); },
+    async prefetch(value: number) { this.prefetchValue = value; },
+    async consume(_queue: string, callback: (message: unknown) => void, options: Record<string, unknown>) {
+      this.consumeCallback = callback;
+      this.consumeOptions = options;
+      return { consumerTag: "api-lens-test-consumer" };
+    },
+    async cancel() { this.cancelled = true; },
+    ack() {},
+    nack() {},
+    async close() { this.emit("close"); },
+  });
+  const publisher = Object.assign(new EventEmitter(), {
+    assertions: [] as Array<{ queue: string; options: Record<string, unknown> }>,
+    async assertQueue(queue: string, options: Record<string, unknown>) { this.assertions.push({ queue, options }); },
+    sendToQueue() { return true; },
+    async waitForConfirms() {},
+    async close() { this.emit("close"); },
+  });
+  return Object.assign(new EventEmitter(), {
+    consumer,
+    publisher,
+    closed: false,
+    async createChannel() { return consumer; },
+    async createConfirmChannel() { return publisher; },
+    async close() {
+      this.closed = true;
+      this.emit("close");
+    },
+  });
+}

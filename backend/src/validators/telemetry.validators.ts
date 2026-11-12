@@ -17,6 +17,11 @@ export const telemetrySchema = z.object({
 
 export type TelemetryInput = z.infer<typeof telemetrySchema>;
 
-export interface TelemetryMessage extends TelemetryInput {
+export interface WorkerTelemetryMessage extends TelemetryInput {
+  eventId?: string;
   projectId: string;
+}
+
+export interface TelemetryMessage extends WorkerTelemetryMessage {
+  eventId: string;
 }

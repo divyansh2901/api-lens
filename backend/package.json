@@ -5,8 +5,10 @@
   "main": "index.js",
   "scripts": {
     "dev": "node --env-file=.env --import tsx --watch src/server.ts",
+    "worker:dev": "node --env-file=.env --import tsx --watch src/worker.ts",
     "build": "prisma generate && tsc",
     "start": "node --env-file=.env dist/server.js",
+    "worker": "node --env-file=.env dist/worker.js",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
