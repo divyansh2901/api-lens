@@ -26,8 +26,19 @@ if (!Number.isInteger(port) || port < 1 || port > 65535) {
   throw new Error("PORT must be an integer between 1 and 65535.");
 }
 
+const rabbitMqUrl = process.env.RABBITMQ_URL?.trim() || "amqp://localhost:5672";
+try {
+  const parsed = new URL(rabbitMqUrl);
+  if (parsed.protocol !== "amqp:" && parsed.protocol !== "amqps:") {
+    throw new Error();
+  }
+} catch {
+  throw new Error("RABBITMQ_URL must be a valid AMQP or AMQPS connection URL.");
+}
+
 export const env = {
   DATABASE_URL: databaseUrl,
   JWT_SECRET: jwtSecret,
   PORT: port,
+  RABBITMQ_URL: rabbitMqUrl,
 };

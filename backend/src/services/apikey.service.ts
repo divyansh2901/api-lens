@@ -200,21 +200,35 @@ export async function revokeKey(userId: string, projectId: string, keyId: string
  *   - JWT: "which human user is logged into the dashboard?"
  *   - API Key: "which project is this SDK sending telemetry for?"
  */
-export async function validateApiKey(rawKey: string): Promise<string> {
-  const keyHash = hashKey(rawKey);
-
-  const apiKey = await prisma.apiKey.findUnique({
-    where: { keyHash },
-  });
-
-  if (!apiKey) {
-    throw new AppError(401, "INVALID_API_KEY", "Invalid API key");
-  }
-
-  if (apiKey.revokedAt) {
-    throw new AppError(401, "REVOKED_API_KEY", "API key has been revoked");
-  }
-
-  // Return the project this key belongs to
-  return apiKey.projectId;
+export interface ApiKeyRecord {
+  projectId: string;
+  revokedAt: Date | null;
 }
+
+export type ApiKeyHashLookup = (keyHash: string) => Promise<ApiKeyRecord | null>;
+
+/** Build the hash lookup used for API key validation and exercised in tests. */
+export function createApiKeyValidator(lookup: ApiKeyHashLookup) {
+  return async function validateApiKey(rawKey: string): Promise<string> {
+    if (typeof rawKey !== "string" || rawKey.length === 0 || rawKey.length > 256) {
+      throw new AppError(401, "INVALID_API_KEY", "Invalid API key");
+    }
+
+    const apiKey = await lookup(hashKey(rawKey));
+    if (!apiKey) {
+      throw new AppError(401, "INVALID_API_KEY", "Invalid API key");
+    }
+    if (apiKey.revokedAt) {
+      throw new AppError(401, "REVOKED_API_KEY", "API key has been revoked");
+    }
+
+    return apiKey.projectId;
+  };
+}
+
+export const validateApiKey = createApiKeyValidator(async (keyHash) =>
+  prisma.apiKey.findUnique({
+    where: { keyHash },
+    select: { projectId: true, revokedAt: true },
+  }),
+);

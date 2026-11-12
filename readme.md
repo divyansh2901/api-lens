@@ -540,12 +540,13 @@ Create files when the corresponding feature is implemented.
 
 ## Run the backend locally
 
-The backend currently provides signup/login, project management, API key management, and a health check. The SDK, telemetry ingestion, worker, analytics API, and dashboard are not implemented yet.
+The backend currently provides signup/login, project management, API key management, a health check, and `POST /ingest` with RabbitMQ publishing. The custom SDK is in `sdk/`. The persistence worker, analytics API, dashboard, and AI features are not implemented yet.
 
 ### Requirements
 
 - Node.js 20.6 or newer (the run scripts use Node's `--env-file` option)
 - PostgreSQL 14 or newer
+- RabbitMQ (local or remote AMQP/AMQPS broker) for telemetry ingestion
 
 ### Setup
 
@@ -557,7 +558,7 @@ npm install
 cp .env.example .env
 ```
 
-Edit `backend/.env` and set `DATABASE_URL` to a PostgreSQL database that already exists. Set `JWT_SECRET` to a random value at least 32 characters long. For example, generate one with `openssl rand -hex 32` and paste the result into `.env`.
+Edit `backend/.env` and set `DATABASE_URL` to a PostgreSQL database that already exists. Set `JWT_SECRET` to a random value at least 32 characters long. For example, generate one with `openssl rand -hex 32` and paste the result into `.env`. Set `RABBITMQ_URL` if the broker is not available at `amqp://localhost:5672`.
 
 Then create/update the local database schema and start the development server:
 
@@ -580,7 +581,9 @@ npm run db:deploy   # Apply committed migrations in a deployment environment
 
 For local development, `db:migrate` uses Prisma's development migration flow. Commit the generated migration directory when changing the Prisma schema. `db:deploy` applies existing migrations without creating new ones.
 
-The server validates `DATABASE_URL` and `JWT_SECRET` at startup and exits with a direct configuration error if either is missing or invalid. Keep `.env` private; `.env.example` contains placeholders only.
+The server validates `DATABASE_URL`, `JWT_SECRET`, and the AMQP scheme in `RABBITMQ_URL` at startup. The broker URL defaults to local RabbitMQ when unset. Keep `.env` private; `.env.example` contains placeholders only.
+
+Telemetry ingestion publishes to the durable `api-lens.telemetry` RabbitMQ queue. Configure `RABBITMQ_URL` in `backend/.env`; the default is `amqp://localhost:5672`. Start RabbitMQ before sending telemetry. The endpoint returns `202 Accepted` only after RabbitMQ confirms the message. Phase 6 will add a worker to consume this queue and persist events.
 
 ---
 
@@ -1012,7 +1015,7 @@ When a key is created, the raw key should be shown once.
 
 # 17. SDK Requirements
 
-The Phase 4 SDK package lives in `sdk/`. See [the SDK guide](sdk/README.md) for installation, configuration, telemetry contract, and the runnable local example. The event uses `statusCode` to match the `RequestLog` database field. Delivery defaults to `http://localhost:5000/ingest` and can be pointed at a mock receiver or another compatible endpoint with `ingestionUrl`; the actual ingestion API is implemented in Phase 5.
+The Phase 4 SDK package lives in `sdk/`. See [the SDK guide](sdk/README.md) for installation, configuration, telemetry contract, and the runnable local example. The event uses `statusCode` to match the `RequestLog` database field. Delivery defaults to `http://localhost:5000/ingest` and can be pointed at a mock receiver or another compatible endpoint with `ingestionUrl`.
 
 The SDK should capture:
 
@@ -1083,17 +1086,13 @@ Invalid authentication:
 401 Unauthorized
 ```
 
-Invalid payload:
+Malformed JSON or invalid telemetry:
 
 ```http
 400 Bad Request
 ```
 
-Rate limited:
-
-```http
-429 Too Many Requests
-```
+Accepted telemetry is queued with the `projectId` resolved from the API key and returns `202 Accepted`. The strict event body matches the SDK contract: `method`, `route`, `statusCode`, `latency`, and ISO timestamp. Client-supplied project IDs and extra fields are rejected. Broker failures return `503 Service Unavailable` so the SDK can treat delivery as failed.
 
 Internal failure:
 
@@ -1659,7 +1658,7 @@ RABBITMQ_URL="..."
 
 GEMINI_API_KEY="..."
 
-INGESTION_URL="..."
+API_LENS_INGESTION_URL="..."
 ```
 
 Frontend should NEVER receive:

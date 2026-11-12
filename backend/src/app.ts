@@ -1,12 +1,13 @@
 import express from "express";
 import authRoutes from "./routes/auth.routes.js";
 import projectRoutes from "./routes/project.routes.js";
+import ingestionRoutes from "./routes/ingestion.routes.js";
 import { errorHandler } from "./middleware/error-handler.js";
 
 const app = express();
 
 // Parse JSON request bodies — without this, req.body would be undefined
-app.use(express.json());
+app.use(express.json({ limit: "16kb" }));
 
 // ── Health Check ─────────────────────────────────────────────────
 // Simple endpoint to verify the server is running.
@@ -23,6 +24,10 @@ app.use("/api/auth", authRoutes);
 // Mount project routes under /api/projects prefix
 // All project routes require JWT authentication (handled inside the router)
 app.use("/api/projects", projectRoutes);
+
+// The SDK ingestion endpoint authenticates with a project API key and queues
+// the validated event. Persistence belongs to the Phase 6 worker.
+app.use("/ingest", ingestionRoutes);
 
 // ── Error Handler ────────────────────────────────────────────────
 // MUST be registered AFTER all routes.

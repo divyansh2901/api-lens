@@ -21,6 +21,22 @@ export function errorHandler(
   res: Response,
   _next: NextFunction
 ): void {
+  const bodyParserError = err as Error & { type?: string };
+  if (bodyParserError.type === "entity.parse.failed") {
+    res.status(400).json({
+      success: false,
+      error: { code: "INVALID_JSON", message: "Request body must be valid JSON" },
+    });
+    return;
+  }
+  if (bodyParserError.type === "entity.too.large") {
+    res.status(413).json({
+      success: false,
+      error: { code: "PAYLOAD_TOO_LARGE", message: "Request body exceeds the 16 KB limit" },
+    });
+    return;
+  }
+
   // If it's our custom error, we know the status code and error code
   if (err instanceof AppError) {
     res.status(err.statusCode).json({
