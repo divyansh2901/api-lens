@@ -2,6 +2,7 @@ import express from "express";
 import authRoutes from "./routes/auth.routes.js";
 import projectRoutes from "./routes/project.routes.js";
 import ingestionRoutes from "./routes/ingestion.routes.js";
+import analyticsRoutes from "./routes/analytics.routes.js";
 import { errorHandler } from "./middleware/error-handler.js";
 
 const app = express();
@@ -28,6 +29,9 @@ app.use("/api/projects", projectRoutes);
 // The SDK ingestion endpoint authenticates with a project API key and queues
 // the validated event. Persistence belongs to the Phase 6 worker.
 app.use("/ingest", ingestionRoutes);
+
+// Project-scoped analytics are protected by JWT and enforce project ownership.
+app.use("/api/analytics", analyticsRoutes);
 
 // ── Error Handler ────────────────────────────────────────────────
 // MUST be registered AFTER all routes.

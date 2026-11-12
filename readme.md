@@ -543,7 +543,9 @@ Create files when the corresponding feature is implemented.
 
 ## Run the backend locally
 
-The backend currently provides signup/login, project management, API key management, a health check, `POST /ingest`, and a RabbitMQ worker that persists telemetry to PostgreSQL. The custom SDK is in `sdk/`. The analytics API, dashboard, and AI features are not implemented yet.
+The backend currently provides signup/login, project management, API key management, a health check, `POST /ingest`, a RabbitMQ worker that persists telemetry to PostgreSQL, and project-scoped analytics endpoints. The custom SDK is in `sdk/`. The dashboard and AI features are not implemented yet.
+
+See [the Analytics API reference](backend/ANALYTICS_API.md) for requests, time-range rules, and example responses.
 
 ### Requirements
 
@@ -1196,6 +1198,8 @@ Do not silently acknowledge a message before it has been successfully processed.
 
 # 21. Analytics System
 
+The project-scoped Analytics API is implemented. See [backend/ANALYTICS_API.md](backend/ANALYTICS_API.md) for the seven endpoints, response formats, ranges, and pagination.
+
 Analytics should be calculated from `RequestLog`.
 
 Core metrics:
@@ -1827,6 +1831,8 @@ Slow endpoints
 Endpoint errors
 Recent requests
 ```
+
+Implemented as JWT-protected project-scoped endpoints. Every query checks project ownership, supports preset or bounded custom date ranges, and uses PostgreSQL/Prisma aggregations over `RequestLog`.
 
 ---
 

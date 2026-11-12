@@ -40,3 +40,16 @@ export function validate(schema: z.ZodType) {
     next();
   };
 }
+
+/** Validate query parameters and expose their parsed values in res.locals. */
+export function validateQuery(schema: z.ZodType) {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const result = schema.safeParse(req.query);
+    if (!result.success) {
+      const firstIssue = result.error.issues[0];
+      throw new AppError(400, "VALIDATION_ERROR", firstIssue.message);
+    }
+    res.locals.validatedQuery = result.data;
+    next();
+  };
+}
