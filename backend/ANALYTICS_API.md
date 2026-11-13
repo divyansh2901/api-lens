@@ -191,3 +191,5 @@ GET /api/analytics/PROJECT_ID/recent-requests?page=2&limit=20&range=1h
 ```
 
 Invalid ranges or pagination return `400 VALIDATION_ERROR`. Missing or unowned projects return `404 PROJECT_NOT_FOUND`. All responses use the shared `{ success, data }` or `{ success, error }` envelope.
+
+For Gemini-generated summaries and analytics-grounded questions, see the [AI Analytics API reference](AI_API.md).

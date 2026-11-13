@@ -27,6 +27,8 @@ For deployments, route dashboard `/api` requests through a same-origin reverse p
 - Signup and login use `/api/auth/signup` and `/api/auth/login`; the returned JWT is sent as a Bearer token for protected requests.
 - Project listing, creation, deletion, selection, API-key generation, and revocation use the existing `/api/projects` endpoints. Newly generated API keys are shown once and are never persisted by the dashboard.
 - Analytics use all seven Phase 7 endpoints: overview, traffic, status-code distribution, top endpoints, slowest endpoints, endpoint errors, and paginated recent requests.
+- The Ask Observatory panel requests project insights and answers natural-language questions using only those analytics aggregates. It displays observed facts separately from possible explanations and recommendations.
 - Time filters map to the API's `1h`, `24h`, `7d`, and `30d` presets. Empty datasets and request failures have explicit states.
 
 Analytics endpoint contracts and response examples are documented in [the backend analytics reference](../backend/ANALYTICS_API.md).
+Gemini environment setup, AI endpoints, and response examples are documented in [the AI API reference](../backend/AI_API.md).

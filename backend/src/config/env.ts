@@ -41,4 +41,12 @@ export const env = {
   JWT_SECRET: jwtSecret,
   PORT: port,
   RABBITMQ_URL: rabbitMqUrl,
+  // AI is optional so existing API features continue working without Gemini configured.
+  GEMINI_API_KEY: process.env.GEMINI_API_KEY?.trim() || undefined,
+  GEMINI_MODEL: process.env.GEMINI_MODEL?.trim() || "gemini-3.8-flash",
+  GEMINI_TIMEOUT_MS: Number(process.env.GEMINI_TIMEOUT_MS?.trim() || "20000"),
 };
+
+if (!Number.isInteger(env.GEMINI_TIMEOUT_MS) || env.GEMINI_TIMEOUT_MS < 1_000 || env.GEMINI_TIMEOUT_MS > 120_000) {
+  throw new Error("GEMINI_TIMEOUT_MS must be an integer between 1000 and 120000.");
+}

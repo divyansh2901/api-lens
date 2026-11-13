@@ -543,9 +543,10 @@ Create files when the corresponding feature is implemented.
 
 ## Run the backend locally
 
-The backend currently provides signup/login, project management, API key management, a health check, `POST /ingest`, a RabbitMQ worker that persists telemetry to PostgreSQL, and project-scoped analytics endpoints. The custom SDK is in `sdk/`. The dashboard and AI features are not implemented yet.
+The backend currently provides signup/login, project management, API key management, a health check, `POST /ingest`, a RabbitMQ worker that persists telemetry to PostgreSQL, project-scoped analytics, and Gemini-powered project insights. The custom SDK is in `sdk/`; the React dashboard is in `frontend/`.
 
 See [the Analytics API reference](backend/ANALYTICS_API.md) for requests, time-range rules, and example responses.
+See [the AI Analytics API reference](backend/AI_API.md) for Gemini configuration and project-scoped insight and Ask Observatory endpoints.
 
 ### Requirements
 
@@ -595,9 +596,24 @@ For local development, `db:migrate` uses Prisma's development migration flow. Co
 
 The server validates `DATABASE_URL`, `JWT_SECRET`, and the AMQP scheme in `RABBITMQ_URL` at startup. The broker URL defaults to local RabbitMQ when unset. Keep `.env` private; `.env.example` contains placeholders only.
 
+Gemini is optional. To enable Phase 9, set `GEMINI_API_KEY` in `backend/.env`; optionally configure `GEMINI_MODEL` and `GEMINI_TIMEOUT_MS`. The dashboard never receives this key. See [AI_API.md](backend/AI_API.md) for endpoint behavior and response formats.
+
 Telemetry ingestion publishes to the durable `api-lens.telemetry` RabbitMQ queue. The worker consumes this queue and writes `RequestLog` records. Configure `RABBITMQ_URL` in `backend/.env`; the default is `amqp://localhost:5672`. Start RabbitMQ before sending telemetry. The endpoint returns `202 Accepted` only after RabbitMQ confirms the message.
 
 The worker also declares durable `api-lens.telemetry.retry` and `api-lens.telemetry.dead` queues. Database failures are retried up to five times with a five-second delay; invalid messages and exhausted retries are forwarded to the dead-letter queue. New ingested messages carry a unique event ID, and `RequestLog.eventId` is unique so broker redeliveries do not create duplicate rows. Run `npm run db:migrate` to apply the event ID migration before starting the worker. In production, build with `npm run build` and run the worker separately with `npm run worker`.
+
+### Run the dashboard
+
+In another terminal from the repository root:
+
+```bash
+npm install
+npm run dev
+```
+
+Vite serves the dashboard at `http://localhost:5173` and proxies `/api` requests to `http://localhost:5000`. To use another local backend address, set `API_LENS_BACKEND_URL` for the Vite process. For production, serve the built `dist/` directory and configure a same-origin reverse proxy for `/api` to the backend; alternatively set the browser-visible `VITE_API_BASE_URL` to the API origin and configure backend CORS for that specific dashboard origin. Frontend environment variables must never contain backend credentials or JWT signing secrets.
+
+See [the frontend guide](frontend/README.md) for authentication, project management, analytics, and deployment details.
 
 ---
 
@@ -1850,6 +1866,8 @@ Endpoint tables
 Recent requests
 ```
 
+Implemented: signup/login, protected dashboard routes, project creation/selection/deletion and API-key management, live analytics cards and Recharts visualizations, endpoint/error rankings, paginated recent requests, and the NeoBrutalism visual language. Gemini-powered insight and Ask Observatory panels are implemented in Phase 9.
+
 ---
 
 ## Phase 9 — AI Integration
@@ -1869,6 +1887,8 @@ Then consider:
 ```text
 Ask API Lens
 ```
+
+Implemented with Google's official Gemini JavaScript SDK. Project-scoped insights and Ask Observatory use bounded Phase 7 analytics, structured output validation, provider timeout/error handling, and per-user request limits. The Gemini key remains backend-only.
 
 ---
 
